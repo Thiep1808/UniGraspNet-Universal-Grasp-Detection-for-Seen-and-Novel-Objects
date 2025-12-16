@@ -5,8 +5,8 @@ import scipy.io as scio
 from PIL import Image
 
 import torch
-# from torch._six import container_abcs
 import collections.abc as container_abcs
+# import collections.abc as container_abcs
 from torch.utils.data import Dataset
 import MinkowskiEngine as ME
 from tqdm import tqdm
@@ -17,10 +17,11 @@ sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 from data_utils import CameraInfo, transform_point_cloud, create_point_cloud_from_depth_image, \
     get_workspace_mask, remove_invisible_grasp_points
 from graspnetAPI.utils.utils import xmlReader,parse_posevector
-
+from sklearn.decomposition import PCA
+from scipy.spatial import cKDTree
 
 class GraspNetDataset_fusion(Dataset):
-    def __init__(self, root, valid_obj_idxs, grasp_labels, camera='kinect', split='train', num_points=20000,
+    def __init__(self, root, start_scene, end_scene, valid_obj_idxs, grasp_labels, camera='kinect', split='train', num_points=20000,
                  remove_outlier=False, remove_invisible=True, augment=False, load_label=True,voxel_size = 0.005, use_fine = False):
         assert (num_points <= 50000)
         self.root = root
@@ -37,7 +38,7 @@ class GraspNetDataset_fusion(Dataset):
         self.voxel_size = voxel_size
 
         if split == 'train':
-            self.sceneIds = list(range(0,100))
+            self.sceneIds = list(range(start_scene, end_scene))
         elif split == 'test':
             self.sceneIds = list(range(100, 190))
         elif split == 'test_seen':
@@ -81,15 +82,7 @@ class GraspNetDataset_fusion(Dataset):
         aug_trans = np.array([[1, 0, 0],
                               [0, 1, 0],
                               [0, 0, 1]])
-        # if np.random.random() > 0.5:
-        #     flip_mat = np.array([[-1, 0, 0],
-        #                          [0, 1, 0],
-        #                          [0, 0, 1]])
-        #     point_clouds = transform_point_cloud(point_clouds, flip_mat, '3x3')
-        #     normals = transform_point_cloud(normals, flip_mat, '3x3')
-        #     for i in range(len(object_poses_list)):
-        #         object_poses_list[i] = np.dot(flip_mat, object_poses_list[i]).astype(np.float32)
-        #     aug_trans = np.dot(aug_trans, flip_mat.T)
+
 
         # Rotation along up-axis/Z-axis
         rot_angle = (np.random.random() * np.pi / 3) - np.pi / 6  # -30 ~ +30 degree
@@ -116,8 +109,6 @@ class GraspNetDataset_fusion(Dataset):
         point_cloud = np.array(fusion_data['xyz'])
         normal = np.array(fusion_data['normal'])
         color = np.array(fusion_data['color'])
-        # seg = np.array(np.load(self.inspath[index]))
-        # seg = np.array(np.load(self.sampath[index]))
         seg = np.array(np.load(self.labelpath[index]))
         scene = self.scenename[index]
         if return_raw_cloud:
@@ -133,7 +124,6 @@ class GraspNetDataset_fusion(Dataset):
             color = color[workspace_mask]
             seg = seg[workspace_mask]
 
-        # sample points
         if len(point_cloud) >= self.num_points:
             idxs = np.random.choice(len(point_cloud), self.num_points, replace=False)
         else:
@@ -164,7 +154,10 @@ class GraspNetDataset_fusion(Dataset):
         color = np.array(fusion_data['color'])
         seg = np.array(np.load(self.labelpath[index]))
         scene = self.scenename[index]
-        # sample points
+        data_ = np.load(os.path.join(self.root, "heatmap", f"{scene}_ret_dict.npy") ,allow_pickle=True).item()
+        classes = data_["classes"]
+        classes[classes == 33] = 12
+        classes[classes == 34] = 19
         if len(point_cloud) >= self.num_points:
             idxs = np.random.choice(len(point_cloud), self.num_points, replace=False)
         else:
@@ -174,12 +167,10 @@ class GraspNetDataset_fusion(Dataset):
         cloud_sampled = point_cloud[idxs]
         seg_sampled = seg[idxs]
         normal_sampled = normal[idxs]
-        color_sampled = color[idxs]
         objectness_label = seg_sampled.copy()
         objectness_label[objectness_label > 1] = 1
+        classes = classes[idxs]
 
-
-        # filter the collision point
         object_poses_list = []
         grasp_points_list = []
         grasp_offsets_list = []
@@ -187,8 +178,6 @@ class GraspNetDataset_fusion(Dataset):
         grasp_tolerance_list = []
         ret_obj_list = []
 
-
-        # get object poses
         align_mat = np.load(os.path.join(self.root, 'scenes', scene, self.camera, 'cam0_wrt_table.npy'))
 
         scene_reader = xmlReader(
@@ -202,19 +191,20 @@ class GraspNetDataset_fusion(Dataset):
             poses.append(pose)
             obj_list.append(obj_idx+1)
         poses = np.asarray(poses).astype(np.float32)
-
+        heatmap_scores = np.zeros(len(cloud_sampled), dtype=np.float32)
+        sigma_heatmap = 0.01
+        radius = 0.03
         for i, obj_idx in enumerate(obj_list):
             if obj_idx not in self.valid_obj_idxs:
                 continue
             if (seg_sampled == obj_idx).sum() < 50:
                 continue
+            obj_mask = (seg_sampled == obj_idx)
+            obj_points = cloud_sampled[obj_mask]
             object_poses_list.append(poses[i, :3, :4])
             points, offsets, scores, tolerance = self.grasp_labels[obj_idx]
-
-            # collision = collision_list[i]
-            collision = self.collision_labels[scene][i]  # (Np, V, A, D)
-
-            # remove invisible grasp points
+            collision = self.collision_labels[scene][i]
+            obj_points_full = cloud_sampled[obj_mask]
             if self.remove_invisible:
                 visible_mask = remove_invisible_grasp_points(cloud_sampled[seg_sampled == obj_idx], points,
                                                              poses[i, :3, :4], th=0.01)
@@ -238,11 +228,52 @@ class GraspNetDataset_fusion(Dataset):
             tolerance[collision] = 0
             grasp_tolerance_list.append(tolerance)
 
+            grasp_points_trans = transform_point_cloud(points, poses[i, :3, :4])[idxs]
+
+            fric_coef_thresh = 0.4
+            valid_grasp_mask = (scores <= fric_coef_thresh) & (scores > 0)
+            valid_count = np.sum(valid_grasp_mask, axis=(1, 2, 3))
+            total_dims = scores.shape[1] * scores.shape[2] * scores.shape[3]
+
+            grasp_point_graspness = np.sqrt(valid_count / total_dims)
+
+            tree_grasp = cKDTree(grasp_points_trans)
+            distances, indices = tree_grasp.query(obj_points_full, k=1)
+
+            valid_association = distances <= 0.01
+            obj_raw_scores = np.zeros(len(obj_points_full), dtype=np.float32)
+            if np.any(valid_association):
+                obj_raw_scores[valid_association] = grasp_point_graspness[indices[valid_association]]
+
+            obj_tree = cKDTree(obj_points_full)
+            obj_smoothed_scores = np.zeros_like(obj_raw_scores)
+            for k in range(len(obj_points_full)):
+                neighbor_idxs = obj_tree.query_ball_point(obj_points_full[k], r=radius)
+
+                if len(neighbor_idxs) > 0:
+                    dists = np.linalg.norm(obj_points_full[neighbor_idxs] - obj_points_full[k], axis=1)
+                    gaussian_weights = np.exp(-dists ** 2 / (2 * sigma_heatmap ** 2))
+
+                    numerator = np.sum(obj_raw_scores[neighbor_idxs] * gaussian_weights)
+                    denominator = np.sum(gaussian_weights)
+
+                    if denominator > 0:
+                        obj_smoothed_scores[k] = numerator / denominator
+
+            g_max = np.max(obj_smoothed_scores)
+            g_min = np.min(obj_smoothed_scores)
+
+            if g_max - g_min > 0:
+                obj_normalized_scores = (obj_smoothed_scores - g_min) / (g_max - g_min)
+            else:
+                obj_normalized_scores = obj_smoothed_scores
+            heatmap_scores[obj_mask] = obj_normalized_scores
 
         ret_dict = {}
         if self.augment:
-            cloud_sampled,normal_sampled, object_poses_list, aug_trans = self.augment_data(cloud_sampled,normal_sampled, object_poses_list)
-            # ret_dict['aug_trans'] = aug_trans
+            cloud_sampled, normal_sampled, object_poses_list, aug_trans = self.augment_data(cloud_sampled,
+                                                                                            normal_sampled,
+                                                                                            object_poses_list)
 
         ret_dict['point_clouds'] = cloud_sampled.astype(np.float32)
         ret_dict['coors'] = cloud_sampled.astype(np.float32) / self.voxel_size
@@ -254,7 +285,9 @@ class GraspNetDataset_fusion(Dataset):
         ret_dict['grasp_labels_list'] = grasp_scores_list
         ret_dict['grasp_tolerance_list'] = grasp_tolerance_list
         ret_dict['instance_mask'] = seg_sampled
-        ret_dict['obj_list'] = ret_obj_list #np.asarray(obj_list).astype(np.int64)
+        ret_dict['obj_list'] = ret_obj_list
+        ret_dict['classes'] = classes.astype(np.int32)
+        ret_dict['heatmap_scores'] = heatmap_scores.astype(np.float32)
         return ret_dict
 
 def load_grasp_labels(root):
@@ -308,3 +341,4 @@ def collate_fn(batch):
         return [[torch.from_numpy(sample) for sample in b] for b in batch]
 
     raise TypeError("batch must contain tensors, dicts or lists; found {}".format(type(batch[0])))
+

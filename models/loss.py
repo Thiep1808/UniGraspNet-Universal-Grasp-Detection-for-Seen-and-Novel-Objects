@@ -1,6 +1,4 @@
-""" Loss functions for training.
-    Author: chenxi-wang
-"""
+
 
 import torch
 import torch.nn as nn
@@ -23,11 +21,16 @@ import contact_point_loss
 
 
 def get_loss(end_points):
+    epoch = end_points['epoch']
+    mcr_weight = 0.01
+
+    if epoch >= 30:
+        mcr_weight = 0.0
     objectness_loss, end_points = compute_graspable_loss_sparse(end_points)
     view_loss, end_points = compute_robust_view_loss_regression(end_points)
     grasp_loss, end_points = compute_grasp_loss_regression(end_points)
     contact_sdf_loss, end_points = contact_point_loss.contact_point_loss_sdf(end_points)
-    loss = objectness_loss + view_loss + 0.2*grasp_loss + 0.1 * contact_sdf_loss
+    loss = objectness_loss + view_loss + 0.2 * grasp_loss + 0.1 * contact_sdf_loss - mcr_weight * end_points["loss_MCRR"]
     end_points['loss/overall_loss'] = loss
     return loss, end_points
 

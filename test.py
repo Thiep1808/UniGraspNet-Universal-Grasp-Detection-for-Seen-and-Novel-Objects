@@ -21,11 +21,10 @@ from mink_dataset import GraspNetDataset_fusion, minkowski_collate_fn,load_grasp
 from collision_detector import ModelFreeCollisionDetector
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset_root', required=True, help='Dataset root')
-parser.add_argument('--checkpoint_path', required=True, help='Model checkpoint path')
-parser.add_argument('--dump_dir'
-                    , required=True, help='Dump dir to save outputs')
-parser.add_argument('--camera', required=True, help='Camera split [realsense/kinect]')
+parser.add_argument('--dataset_root', default="/home/thanh/Downloads/data", help='Dataset root')
+parser.add_argument('--checkpoint_path', default="/home/thanh/Downloads/checkpoint.tar", help='Model checkpoint path')
+parser.add_argument('--dump_dir', default="/home/thanh/PyCharmMiscProject/UniGraspNet/test", help='Dump dir to save outputs')
+parser.add_argument('--camera', default="realsense", help='Camera split [realsense/kinect]')
 parser.add_argument('--num_point', type=int, default=20000, help='Point Number [default: 20000]')
 parser.add_argument('--num_view', type=int, default=300, help='View Number [default: 300]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during inference [default: 1]')

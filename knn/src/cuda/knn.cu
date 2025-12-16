@@ -261,9 +261,3 @@ void knn_device(float* ref_dev, int ref_nb, float* query_dev, int query_nb,
   }
 #endif
 }
-
-
-
-
-
-

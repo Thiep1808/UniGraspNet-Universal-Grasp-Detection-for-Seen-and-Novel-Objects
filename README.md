@@ -24,7 +24,7 @@ Follow the installation of graspnet-baseline.
 Get the code.
 ```bash
 git clone https://github.com/mahaoxiang822/Generalizing-Grasp.git
-cd Generalizing-Grasp
+cd UniGraspNet
 ```
 Install packages via Pip.
 ```bash

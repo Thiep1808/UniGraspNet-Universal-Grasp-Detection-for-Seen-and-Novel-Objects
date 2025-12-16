@@ -8,7 +8,6 @@ from datetime import datetime
 import argparse
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader,ConcatDataset, WeightedRandomSampler
@@ -21,20 +20,20 @@ sys.path.append(os.path.join(ROOT_DIR, 'models'))
 sys.path.append(os.path.join(ROOT_DIR, 'dataset'))
 
 from pytorch_utils import BNMomentumScheduler
-from mink_dataset import GraspNetDataset_fusion, minkowski_collate_fn, load_grasp_labels
+from mink_dataset2 import GraspNetDataset_fusion, minkowski_collate_fn, load_grasp_labels
 
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset_root', required=True, help='Dataset root')
-parser.add_argument('--camera', required=True, help='Camera split [realsense/kinect]')
-parser.add_argument('--checkpoint_path', default=None, help='Model checkpoint path [default: None]')
-parser.add_argument('--log_dir', default='log', help='Dump dir to save model checkpoint [default: log]')
+parser.add_argument('--dataset_root', default="/notebooks/data", help='Dataset root')
+parser.add_argument('--camera', default="realsense", help='Camera split [realsense/kinect]')
+parser.add_argument('--checkpoint_path', default="/notebooks/Grasp_object/log_heatmap5/checkpoint.tar", help='Model checkpoint path [default: None]')
+parser.add_argument('--log_dir', default='/notebooks/Grasp_object/log_heatmap5', help='Dump dir to save model checkpoint [default: log]')
 parser.add_argument('--num_point', type=int, default=20000, help='Point Number [default: 20000]')
 parser.add_argument('--num_view', type=int, default=300, help='View Number [default: 300]')
 parser.add_argument('--max_epoch', type=int, default=360, help='Epoch to run [default: 18]')
 parser.add_argument('--batch_size', type=int, default=2, help='Batch Size during training [default: 2]')
-parser.add_argument('--num_workers', type=int, default=2, help='workers num during training [default: 2]')
+parser.add_argument('--num_workers', type=int, default=0, help='workers num during training [default: 2]')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='Initial learning rate [default: 0.001]')
 parser.add_argument('--weight_decay', type=float, default=0, help='Optimization L2 weight decay [default: 0]')
 parser.add_argument('--bn_decay_step', type=int, default=2, help='Period of BN decay (in epochs) [default: 2]')
@@ -73,25 +72,6 @@ def my_worker_init_fn(worker_id):
     pass
 
 
-# Create Dataset and Dataloader
-valid_obj_idxs, grasp_labels = load_grasp_labels(cfgs.dataset_root)
-TRAIN_DATASET = GraspNetDataset_fusion(cfgs.dataset_root, valid_obj_idxs, grasp_labels, camera=cfgs.camera, split='train',
-                                num_points=cfgs.num_point, remove_outlier=True, augment=True)
-TEST_DATASET = GraspNetDataset_fusion(cfgs.dataset_root, valid_obj_idxs, grasp_labels, camera=cfgs.camera, split='test_novel',
-                               num_points=cfgs.num_point, remove_outlier=True, augment=False)
-
-
-# print(len(TRAIN_DATASET), len(TEST_DATASET))
-print(len(TRAIN_DATASET))
-TRAIN_DATALOADER = DataLoader(TRAIN_DATASET, batch_size=cfgs.batch_size, shuffle=True,
-                              num_workers=cfgs.num_workers, worker_init_fn=my_worker_init_fn, collate_fn=minkowski_collate_fn)
-TEST_DATALOADER = DataLoader(TEST_DATASET, batch_size=cfgs.batch_size, shuffle=False,
-                             num_workers=cfgs.num_workers, worker_init_fn=my_worker_init_fn, collate_fn=minkowski_collate_fn)
-print(len(TRAIN_DATALOADER), len(TEST_DATALOADER))
-# print(len(TRAIN_DATALOADER))
-
-
-
 from graspnet_sparseconv import GraspNet_MSCQ
 from loss import get_loss
 net = GraspNet_MSCQ(input_feature_dim=0, num_view=cfgs.num_view, num_angle=12, num_depth=4,
@@ -103,7 +83,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 net.to(device)
 
 optimizer = optim.Adam(net.parameters(), lr=cfgs.learning_rate, weight_decay=cfgs.weight_decay)
-
 
 # Load checkpoint if there is any
 it = -1  # for the initialize value of `LambdaLR` and `BNMomentumScheduler`
@@ -117,10 +96,8 @@ if CHECKPOINT_PATH is not None and os.path.isfile(CHECKPOINT_PATH):
 
 
 from torch.optim.lr_scheduler import OneCycleLR
-scheduler = OneCycleLR(optimizer, max_lr=cfgs.learning_rate, steps_per_epoch=len(TRAIN_DATALOADER),
-                       epochs=cfgs.max_epoch, last_epoch=start_epoch * len(TRAIN_DATALOADER)-1)
-
-
+scheduler = OneCycleLR(optimizer, max_lr=cfgs.learning_rate, steps_per_epoch=50,
+                       epochs=cfgs.max_epoch, last_epoch=start_epoch * 50-1)
 
 BN_MOMENTUM_INIT = 0.5
 BN_MOMENTUM_MAX = 0.001
@@ -142,10 +119,19 @@ TRAIN_WRITER = SummaryWriter(os.path.join(cfgs.log_dir, 'train'))
 TEST_WRITER = SummaryWriter(os.path.join(cfgs.log_dir, 'test'))
 
 
-def train_one_epoch():
+def train_one_epoch(start_scene, end_scene, valid_obj_idxs, grasp_labels):
     stat_dict = {}  # collect statistics
     bnm_scheduler.step()  # decay BN momentum
     net.train()
+
+    TRAIN_DATASET = GraspNetDataset_fusion(cfgs.dataset_root,start_scene, end_scene, valid_obj_idxs, grasp_labels, camera=cfgs.camera,
+                                           split='train',
+                                           num_points=cfgs.num_point, remove_outlier=True, augment=True)
+    print(len(TRAIN_DATASET))
+    TRAIN_DATALOADER = DataLoader(TRAIN_DATASET, batch_size=cfgs.batch_size, shuffle=True,
+                                  num_workers=cfgs.num_workers, worker_init_fn=my_worker_init_fn,
+                                  collate_fn=minkowski_collate_fn)
+    print(len(TRAIN_DATALOADER))
     for batch_idx, batch_data_label in enumerate(TRAIN_DATALOADER):
         for key in batch_data_label:
             if 'list' in key:
@@ -156,9 +142,9 @@ def train_one_epoch():
                 batch_data_label[key] = batch_data_label[key].to(device)
 
         # Forward pass
+        batch_data_label['epoch'] = EPOCH_CNT
         end_points = net(batch_data_label)
         # Compute loss and gradients, update parameters.
-        end_points['epoch'] = EPOCH_CNT
         loss, end_points = get_loss(end_points)
         loss.backward()
         if (batch_idx + 1) % 1 == 0:
@@ -186,62 +172,28 @@ def train_one_epoch():
 
 
 
-def evaluate_one_epoch():
-    stat_dict = {}  # collect statistics
-    # set model to eval mode (for bn and dp)
-    net.eval()
-    for batch_idx, batch_data_label in enumerate(TEST_DATALOADER):
-        if batch_idx % 10 == 0:
-            print('Eval batch: %d' % (batch_idx))
-        for key in batch_data_label:
-            if 'list' in key:
-                for i in range(len(batch_data_label[key])):
-                    for j in range(len(batch_data_label[key][i])):
-                        batch_data_label[key][i][j] = batch_data_label[key][i][j].to(device)
-            else:
-                batch_data_label[key] = batch_data_label[key].to(device)
 
-        # Forward pass
-        with torch.no_grad():
-            end_points = net(batch_data_label)
-
-        # Compute loss
-        end_points['epoch'] = EPOCH_CNT
-        loss, end_points = get_loss(end_points)
-
-        # Accumulate statistics and print out
-        for key in end_points:
-            if 'loss' in key or 'acc' in key or 'prec' in key or 'recall' in key or 'count' in key:
-                if key not in stat_dict: stat_dict[key] = 0
-                stat_dict[key] += end_points[key].item()
-
-    for key in sorted(stat_dict.keys()):
-        TEST_WRITER.add_scalar(key, stat_dict[key] / float(batch_idx + 1),
-                               (EPOCH_CNT + 1) * len(TRAIN_DATALOADER) * cfgs.batch_size)
-        log_string('eval mean %s: %f' % (key, stat_dict[key] / (float(batch_idx + 1))))
-
-    mean_loss = stat_dict['loss/overall_loss'] / float(batch_idx + 1)
-    return mean_loss
 
 def train(start_epoch):
     global EPOCH_CNT
     loss = 0
+    valid_obj_idxs, grasp_labels = load_grasp_labels(cfgs.dataset_root)
     for epoch in range(start_epoch, cfgs.max_epoch):
         EPOCH_CNT = epoch
         log_string('**** EPOCH %03d ****' % (epoch))
         log_string('Current learning rate: %f' % (optimizer.param_groups[0]['lr']))
         log_string('Current BN decay momentum: %f' % (bnm_scheduler.lmbd(bnm_scheduler.last_epoch)))
         log_string(str(datetime.now()))
-        # Reset numpy seed.
-        # REF: https://github.com/pytorch/pytorch/issues/5059
         np.random.seed()
-        train_one_epoch()
-        # Save checkpoint
-        save_dict = {'epoch': epoch + 1,  # after training one epoch, the start_epoch should be epoch+1
+        for i in [[i, min(i + 20, 100)] for i in range(0, 100, 20)]:
+            start_scene, end_scene = i
+            train_one_epoch(start_scene, end_scene, valid_obj_idxs, grasp_labels)
+        save_dict = {'epoch': epoch + 1,
                      'optimizer_state_dict': optimizer.state_dict(),
+                     'bnm_scheduler_last_epoch': bnm_scheduler.last_epoch,
                      'loss': loss,
                      }
-        try:  # with nn.DataParallel() the net is added as a submodule of DataParallel
+        try:
             save_dict['model_state_dict'] = net.module.state_dict()
         except:
             save_dict['model_state_dict'] = net.state_dict()

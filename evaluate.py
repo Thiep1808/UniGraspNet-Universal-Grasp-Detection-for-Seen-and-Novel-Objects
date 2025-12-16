@@ -190,28 +190,28 @@ class GraspNetEvalComplete(GraspNetEval):
         else:
             return scene_accuracy, grasp_list_list, score_list_list, collision_list_list
 
-ge = GraspNetEvalComplete(root="/data/graspnet", camera="realsense", split='test')
-path = "logs/dump_csjo"
+ge = GraspNetEvalComplete(root="/home/thanh/Downloads/data", camera="realsense", split='test')
+path = "/home/thanh/PyCharmMiscProject/UniGraspNet/test"
 
-res, ap = ge.eval_seen(path, proc=32)
-print("seen")
-print("AP",np.mean(res))
-print(res.shape)
-res = res.transpose(3,0,1,2).reshape(6,-1)
-res = np.mean(res,axis=1)
-print("AP0.4",res[1])
-print("AP0.8",res[3])
+# res, ap = ge.eval_seen(path, proc=1)
+# print("seen")
+# print("AP",np.mean(res))
+# print(res.shape)
+# res = res.transpose(3,0,1,2).reshape(6,-1)
+# res = np.mean(res,axis=1)
+# print("AP0.4",res[1])
+# print("AP0.8",res[3])
 
-res, ap = ge.eval_similar(path, proc=32)
-print("similar")
-print("AP",np.mean(res))
-print(res.shape)
-res = res.transpose(3,0,1,2).reshape(6,-1)
-res = np.mean(res,axis=1)
-print("AP0.4",res[1])
-print("AP0.8",res[3])
-
-res, ap = ge.eval_novel(path, proc=32)
+# res, ap = ge.eval_similar(path, proc=1)
+# print("similar")
+# print("AP",np.mean(res))
+# print(res.shape)
+# res = res.transpose(3,0,1,2).reshape(6,-1)
+# res = np.mean(res,axis=1)
+# print("AP0.4",res[1])
+# print("AP0.8",res[3])
+#
+res, ap = ge.eval_novel(path, proc=1)
 print("novel")
 print(res.shape)
 #delete scene 187 for wrong camera pose

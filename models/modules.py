@@ -18,6 +18,7 @@ sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 import pytorch_utils as pt_utils
 from pointnet2_utils import CylinderQueryAndGroup, OnlyGroup  # , BallRotQueryAndGroup
 from loss_utils import generate_grasp_views, batch_viewpoint_params_to_matrix,generate_lalo_view8
+from MCR2 import supervised_mcr2_loss, balanced_mcr2_loss_wrapper
 from pointnet2_utils import furthest_point_sample
 from SDF import SignedDistanceField
 from label_generation import process_graspness
@@ -56,7 +57,11 @@ class ApproachNet_regression_view_fps(nn.Module):
 
         if is_training:
             end_points = process_graspness(end_points)
-
+            end_points = process_graspness(end_points)
+            seed_features_trans = seed_features.transpose(1, 2)
+            Z = F.normalize(seed_features_trans, dim=-1)
+            loss = balanced_mcr2_loss_wrapper(Z, end_points['classes'], 0.8, )
+            end_points["loss_MCRR"] = loss
         objectness_pred = torch.argmax(objectness_score, 1)
         objectness_mask = (objectness_pred == 1)
         graspness_mask = (graspness_score > 0.1) & objectness_mask
