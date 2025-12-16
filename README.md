@@ -1,15 +1,10 @@
-# Generalizing-Grasp
+# UniGraspNet
 
-**Generalizing 6-DoF Grasp Detection via Domain Prior Knowledge**<br>
+**UniGraspNet: Universal Grasp Detection for Seen and Novel Objects**<br>
 
-_Haoxiang Ma, Modishi, Boyang Gao, Di Huang_<br>
-In CVPR'2024
-#### [Paper](https://openaccess.thecvf.com/content/CVPR2024/papers/Ma_Generalizing_6-DoF_Grasp_Detection_via_Domain_Prior_Knowledge_CVPR_2024_paper.pdf) [Video](https://www.youtube.com/watch?v=RzTXFcZURiU&t=14s)
 
 ## Introduction
-This repository is official PyTorch implementation for our CVPR2024 paper.
-The code is based on [GraspNet-baseline](https://github.com/graspnet/graspnet-baseline)
-
+The code is based on [Generalizing-Grasp](https://github.com/mahaoxiang822/Generalizing-Grasp)
 ### Note: The repo is still updating
 
 ## Environments
@@ -23,7 +18,7 @@ Follow the installation of graspnet-baseline.
 
 Get the code.
 ```bash
-git clone https://github.com/mahaoxiang822/Generalizing-Grasp.git
+git clone https://github.com/Thiep1808/UniGraspNet-Universal-Grasp-Detection-for-Seen-and-Novel-Objects.git
 cd UniGraspNet
 ```
 Install packages via Pip.
@@ -107,13 +102,3 @@ note: In current version, only the optimization with gt mask is uploaded and we 
 python evaluate.py
 ```
 
-
-### Citation
-If any part of our paper and repository is helpful to your work, please generously cite with:
-```
-@InProceedings{Ma_2024_cvpr,
-    author    = {Haoxiang, Ma and Modi, Shi and Boyang Gao and Di, Huang},
-    title     = {Generalizing 6-DoF Grasp Detection via Domain Prior Knowledge},
-    booktitle = {IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
-    year      = {2024}
-```
