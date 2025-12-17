@@ -83,17 +83,11 @@ sh command_train.sh
 ```
 
 ### Test
- - We offer our checkpoints for inference and evaluation, you can download from [Google Drive](https://drive.google.com/file/d/1WJj54l7MxFO1kgXoXA9tF6FCfB2okKr3/view?usp=sharing)
+ - We offer our checkpoints for inference and evaluation, you can download from [Google Drive](https://drive.google.com/file/d/10FMQC98PLdkkM-c0m3fOxg6KwnIg3_y6/view?usp=sharing)
 ```bash
 sh command_test.sh
 ```
 
-- For contact-score joint optimization, first download the pretrained [contactnet](https://drive.google.com/file/d/1yMZ5rgloo0xbYvuR46t3sSKMvaVpOavx/view?usp=sharing) & [scorenet](https://drive.google.com/file/d/1didqsuweIbWb6UhL15IMhs2HrDhvC3EQ/view?usp=sharing) and unzip under the logs folder
-then run:
-```bash
-sh optimization.sh
-```
-note: In current version, only the optimization with gt mask is uploaded and we will update the 3d segmentation version in the future.
 
 #### Evaluation
 
