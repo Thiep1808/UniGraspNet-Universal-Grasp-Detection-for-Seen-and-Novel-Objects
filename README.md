@@ -1,4 +1,4 @@
-# UniGraspNet[[report](https://drive.google.com/file/d/1fsylsORLwEwgVls16U6d1anfEaWwHAs5/view?usp=sharing)]
+# UniGraspNet[[report](https://drive.google.com/file/d/1DtiOI9AhXIrL8J0N50SviAKJoy7OE4W-/view?fbclid=IwY2xjawO_Y5BleHRuA2FlbQIxMABicmlkETFKTk5JdXZibmFwd21SdHZGc3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHpSUioAudva2P-DdTBz-hh3hbGl7uWE8rWHiGqEJkeFFxTHtQv-RdOZgih2-_aem_33b8ibRpZ6E3DwiIITXNbA)]
 
 **UniGraspNet: Universal grasp detection across known and new objects**<br>
 
