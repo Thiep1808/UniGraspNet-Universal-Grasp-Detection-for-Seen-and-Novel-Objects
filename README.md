@@ -1,6 +1,6 @@
 # UniGraspNet[[report](https://drive.google.com/file/d/1fsylsORLwEwgVls16U6d1anfEaWwHAs5/view?usp=sharing)]
 
-**UniGraspNet: Universal Grasp Detection for Seen and Novel Objects**<br>
+**UniGraspNet: Universal grasp detection across known and new objects**<br>
 
 ## Introduction
 The code is based on [Generalizing-Grasp](https://github.com/mahaoxiang822/Generalizing-Grasp)
